@@ -26,7 +26,7 @@ Where the data will be formatted into inputs as:
 ```
 [CLS] context [SEP] query option 
 ```
-The strings are concatenated with *no spaces*. (Formatting may differ based on different tokenizers.)
+The strings are concatenated with *no spaces*. Hence, it is recommended to prepend spaces to option and query values. (Formatting may differ based on different tokenizers.)
 
 Converters to this standard format are available for a set of multiple-choice tasks (see: `lrqa/tasks.py`):
 
@@ -41,7 +41,7 @@ validation.jsonl
 test.jsonl
 ```
 
-The individual phases are optional. `config.json` specifies some configurations for the task, such as the number of choices. See `lrqa.tasks.CustomJSONLTask` for more details.
+The individual phases are optional. Each phase is contained in a single `jsonl` file, with the keys as specified above. `config.json` specifies some configurations for the task, such as the number of choices. See `lrqa.tasks.CustomJSONLTask` for more details. See `./resources/example_jsonl_task` for an example. 
 
 ### Models
 
@@ -52,6 +52,16 @@ Models can be broken down into 2 categories:
 **Generation-based** models are based on `transformers.AutoModelForCausalLM`. All auto-modals should be compatible. These can be run zero-shot, as the LM heads can be used directly to score continuations. 
 
 Encoder-Decoder support is coming soon!
+
+## Usage setup
+
+It is recommended to add the path to this repository to your `PYTHONPATH`, e.g.
+
+```bash
+export PYTHONPATH=/path/to/lrqa/:${PYTHONPATH} 
+```
+
+Install requirements as necessary from `requirements.txt`. It is also recommended though not necessary to run code from within this folder.
 
 ## Sample usage
 
