@@ -123,17 +123,15 @@ def get_tokenized_dataset(task: tasks.Task, dataset_dict,
                 max_length=max_seq_length,
                 truncation=truncation_strategy,
             )
-            # heuristic, because tokenizers can be weird
-            option_token_start_idx = np.array(tokenizer(
-                examples["context"],
-                examples["query"],
-                padding=padding_strategy,
-                max_length=max_seq_length,
-                truncation=truncation_strategy,
-            )["attention_mask"]).sum(-1)
+
 
             # For generation
             option_token_end_idx = np.array(tokenized_option["attention_mask"]).sum(-1)
+            # heuristic, because tokenizers can be weird
+            option_token_start_idx = option_token_end_idx - np.array([
+                len(tokenizer.tokenize(x))
+                for x in examples[option_key]
+            ])
             # noinspection PyUnresolvedReferences
             assert (option_token_start_idx < option_token_end_idx).all()
             tokenized_option["option_token_start_idx"] = option_token_start_idx

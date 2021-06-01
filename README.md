@@ -49,6 +49,8 @@ Models can be broken down into 2 categories:
 
 **Encoder-based** models are based on `transformers.AutoModelForMultipleChoice`. All auto-modals should be compatible. These need to be fine-tuned, though tuned models can be applied across tasks.
 
+Note: Hugging Face's implementation runs `.forward` on all options at once, which can increases ram consumption. Adjust batch sizes and gradient accumulation steps accordingly.
+
 **Generation-based** models are based on `transformers.AutoModelForCausalLM`. All auto-modals should be compatible. These can be run zero-shot, as the LM heads can be used directly to score continuations. 
 
 Encoder-Decoder support is coming soon!
@@ -92,7 +94,7 @@ python lrqa/run_lrqa.py \
 EXPDIR=/path/to/experiment
 python lrqa/run_lrqa.py \
     --model_name_or_path gpt2 \
-    --model_mode mc \
+    --model_mode generation \
     --task_name cosmosqa \
     --output_dir ${EXPDIR} \
     --per_device_train_batch_size 8 \
@@ -112,7 +114,7 @@ python lrqa/run_lrqa.py \
 EXPDIR=/path/to/experiment
 python lrqa/run_lrqa.py \
     --model_name_or_path gpt2 \
-    --model_mode mc \
+    --model_mode generation \
     --task_name custom \
     --task_base_path ./resources/example_jsonl_task \
     --output_dir ${EXPDIR} \
