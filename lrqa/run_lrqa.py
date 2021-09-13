@@ -1,5 +1,4 @@
 import os
-import numpy as np
 import torch
 from typing import Optional
 from dataclasses import dataclass, field
@@ -10,6 +9,7 @@ from transformers import (
     AutoModelForCausalLM,
     AutoTokenizer,
     HfArgumentParser,
+    T5ForConditionalGeneration,
     Trainer,
     TrainingArguments,
 )
@@ -21,7 +21,9 @@ import lrqa.tasks as tasks
 from lrqa.utils.hf_utils import parse_args, last_checkpoint_handling
 from lrqa.utils.io_utils import write_json
 from lrqa.utils.model_tweaks import adjust_tokenizer
+from lrqa.utils.tokenizer_utils import get_tokenized_dataset
 from lrqa.trainers import GenerationTrainer
+from typing import Dict, List
 
 
 @dataclass
@@ -34,7 +36,7 @@ class ModelArguments:
         metadata={"help": "Path to pretrained model or model identifier from huggingface.co/models"}
     )
     model_mode: str = field(
-        metadata={"help": "{mc,generation}"}
+        metadata={"help": "{mc,generation,encoder-decoder}"}
     )
     config_name: Optional[str] = field(
         default=None, metadata={"help": "Pretrained config name or path if not the same as model_name"}
@@ -68,6 +70,12 @@ class ModelArguments:
             "If False, will pad the samples dynamically when batching to the maximum length in the batch."
         },
     )
+    parallelize: bool = field(
+        default=False,
+        metadata={
+            "help": "Whether to parallelize the model."
+        }
+    )
     truncation_strategy: TruncationStrategy = field(
         default="only_first",
         metadata={
@@ -82,82 +90,6 @@ class ModelArguments:
     def __post_init__(self):
         self.padding_strategy = PaddingStrategy(self.padding_strategy)
         self.truncation_strategy = TruncationStrategy(self.truncation_strategy)
-
-
-def get_tokenized_dataset(task: tasks.Task, dataset_dict,
-                          tokenizer,
-                          max_seq_length: int,
-                          padding_strategy: PaddingStrategy,
-                          truncation_strategy: TruncationStrategy,
-                          ) -> dict:
-    def tokenize_examples(examples: dict):
-        """
-        Takes a dictionary of examples, with keys:
-            context: str (before [SEP])
-            query: str (after [SEP], can be empty)
-            option_0: str
-            option_1: str
-            ...
-            label: int
-        """
-
-        # This assumes option_keys sorted order corresponds labels order
-        # which is fine for num_labels < 10
-        option_keys = sorted([
-            key for key in examples
-            if key.startswith("option_")
-        ])
-        result = {
-            "label": examples["label"],
-        }
-        for option_key in option_keys:
-            input_part2 = [
-                query + option
-                for query, option
-                in zip(examples["query"], examples[option_key])
-            ]
-            tokenized_option = tokenizer(
-                examples["context"],
-                input_part2,
-                padding=padding_strategy,
-                max_length=max_seq_length,
-                truncation=truncation_strategy,
-            )
-
-
-            # For generation
-            option_token_end_idx = np.array(tokenized_option["attention_mask"]).sum(-1)
-            # heuristic, because tokenizers can be weird
-            option_token_start_idx = option_token_end_idx - np.array([
-                len(tokenizer.tokenize(x))
-                for x in examples[option_key]
-            ])
-            # noinspection PyUnresolvedReferences
-            assert (option_token_start_idx < option_token_end_idx).all()
-            tokenized_option["option_token_start_idx"] = option_token_start_idx
-            tokenized_option["option_token_end_idx"] = option_token_end_idx
-
-            # Append to option lists
-            for k, v in tokenized_option.items():
-                if k not in result:
-                    result[k] = [[v_elem] for v_elem in v]
-                else:
-                    for i, v_elem in enumerate(v):
-                        result[k][i].append(v_elem)
-
-        return result
-    tokenized_dataset = {}
-    for phase in ["train", "validation"]:
-        if phase not in dataset_dict:
-            continue
-        standard_examples = dataset_dict[phase].map(
-            task.standardize_examples,
-            batched=True,
-            remove_columns=task.drop_columns,
-        )
-        tokenized_examples = standard_examples.map(tokenize_examples, batched=True)
-        tokenized_dataset[phase] = tokenized_examples
-    return tokenized_dataset
 
 
 def main():
@@ -194,8 +126,18 @@ def main():
             cache_dir=model_args.cache_dir,
             revision=model_args.model_revision,
         )
+    elif model_args.model_mode == "encoder-decoder":
+        model = T5ForConditionalGeneration.from_pretrained(
+            model_args.model_name_or_path,
+            from_tf=bool(".ckpt" in model_args.model_name_or_path),
+            config=config,
+            cache_dir=model_args.cache_dir,
+            revision=model_args.model_revision,
+        )
     else:
         raise KeyError(model_args.model_mode)
+    if model_args.parallelize:
+        model.parallelize()
     task = tasks.get_task(task_args=task_args)
     dataset_dict = task.get_datasets()
     tokenized_dataset_dict = get_tokenized_dataset(
@@ -225,6 +167,17 @@ def main():
             compute_metrics=task.compute_metrics,
             tokenizer=tokenizer,
             data_collator=default_data_collator,
+        )
+    elif model_args.model_mode == "encoder-decoder":
+        training_args.remove_unused_columns = False
+        trainer = Trainer(
+            model=model,
+            args=training_args,
+            train_dataset=tokenized_dataset_dict.get("train"),
+            eval_dataset=tokenized_dataset_dict.get("validation"),
+            # compute_metrics=task.compute_metrics,
+            prediction_loss_only=True,
+            tokenizer=tokenizer,
         )
     else:
         raise KeyError(model_args.model_mode)
