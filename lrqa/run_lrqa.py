@@ -147,6 +147,7 @@ def main():
         max_seq_length=model_args.max_seq_length,
         padding_strategy=model_args.padding_strategy,
         truncation_strategy=model_args.truncation_strategy,
+        model_mode=model_args.model_mode,
     )
     if model_args.model_mode == "mc":
         trainer = Trainer(
@@ -176,7 +177,7 @@ def main():
             train_dataset=tokenized_dataset_dict.get("train"),
             eval_dataset=tokenized_dataset_dict.get("validation"),
             # compute_metrics=task.compute_metrics,
-            prediction_loss_only=True,
+            data_collator=default_data_collator,
             tokenizer=tokenizer,
         )
     else:

@@ -7,38 +7,43 @@ from typing import Dict
 import lrqa.tasks as tasks
 
 
-def tokenize_examples_for_enc_dec_model(example, tokenizer, max_seq_length: int,
+def tokenize_examples_for_enc_dec_model(examples, tokenizer, max_seq_length: int,
                                         padding_strategy: PaddingStrategy,
                                         truncation_strategy: TruncationStrategy):
     option_keys = sorted([
-        key for key in example
+        key for key in examples
         if key.startswith("option_")
     ])
-    input = " ".join([f"{i}: {example[option_key]}" for i, option_key in enumerate(option_keys)])
-    input = f"{input} context: {example['context']} question: {example['query']} </s>"
+    input_strs = []
+    target_strs = []
+    for i in range(len(examples[option_keys[0]])):
+        all_options = " ".join([f"{j}: {examples[option_key][i]}" for j, option_key in enumerate(option_keys)])
+        input_str = f"{all_options} context: {examples['context'][i]} question: {examples['query'][i]} </s>"
+        target_str = f"{examples['label'][i]}"
+        input_strs.append(input_str)
+        target_strs.append(target_str)
     tokenized_inputs = tokenizer(
-        input,
+        input_strs,
         max_length=max_seq_length,
         padding=padding_strategy,
         truncation=truncation_strategy,
         return_tensors="pt",
     )
-    target = f"{example['label']}"
-    tokenized_target = tokenizer(
-        target,
+    tokenized_targets = tokenizer(
+        target_strs,
         max_length=max_seq_length,
         padding=padding_strategy,
         truncation=truncation_strategy,
         return_tensors="pt",
     )
-    target_ids = tokenized_target["input_ids"]
+    target_ids = tokenized_targets["input_ids"]
     target_ids[target_ids[:, :] == tokenizer.pad_token_id] = -100
 
     return {
-        "input_ids": tokenized_inputs["input_ids"],
-        "attention_mask": tokenized_inputs["attention_mask"],
-        "labels": target_ids,
-        "decoder_attention_mask": tokenized_target["attention_mask"],
+        "input_ids": tokenized_inputs["input_ids"].numpy(),
+        "attention_mask": tokenized_inputs["attention_mask"].numpy(),
+        "labels": target_ids.numpy(),
+        "decoder_attention_mask": tokenized_targets["attention_mask"].numpy(),
     }
 
 
