@@ -42,6 +42,14 @@ def to_jsonl(data):
     return json.dumps(data).replace("\n", "")
 
 
+def show_json(obj, do_print=True):
+    string = json.dumps(obj, indent=2)
+    if do_print:
+        print(string)
+    else:
+        return string
+
+
 def create_containing_folder(path):
     fol_path = os.path.split(path)[0]
     os.makedirs(fol_path, exist_ok=True)

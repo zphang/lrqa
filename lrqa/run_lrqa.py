@@ -19,7 +19,7 @@ from transformers.data.data_collator import default_data_collator
 
 import lrqa.tasks as tasks
 from lrqa.utils.hf_utils import parse_args, last_checkpoint_handling
-from lrqa.utils.io_utils import write_json
+from lrqa.utils.io_utils import write_json, show_json
 from lrqa.utils.model_tweaks import adjust_tokenizer
 from lrqa.utils.tokenizer_utils import get_tokenized_dataset
 from lrqa.trainers import GenerationTrainer
@@ -198,6 +198,7 @@ def main():
     if training_args.do_eval:
         validation_metrics = trainer.evaluate(eval_dataset=tokenized_dataset_dict["validation"])
         write_json(validation_metrics, os.path.join(training_args.output_dir, "val_metrics.json"))
+        show_json(validation_metrics)
 
     if training_args.do_predict:
         predictions = trainer.predict(test_dataset=tokenized_dataset_dict["test"]).predictions
