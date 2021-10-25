@@ -66,7 +66,19 @@ class Task:
     def compute_metrics(self, p: transformers.EvalPrediction):
         preds = p.predictions[0] if isinstance(p.predictions, tuple) else p.predictions
         preds = np.argmax(preds, axis=-1)
-        return {"accuracy": (preds == p.label_ids).astype(np.float32).mean().item()}
+        
+        if preds.ndim < 3:
+            return {"accuracy": (preds == p.label_ids).astype(np.float32).mean().item()}
+        else:
+            label_ids = p.label_ids
+            total = 0
+            num_correct = 0
+            for idx, ex_labels in enumerate(label_ids):
+                ex_labels[ex_labels == -100] = 1
+                total += 1
+                if (ex_labels == preds[idx]).all():
+                    num_correct += 1
+            return {'accuracy': num_correct / total}
 
 
 class CosmosQATask(Task):
@@ -103,9 +115,9 @@ class RaceTask(Task):
             "query": prepend_space(examples["question"]),
         }
         for i in range(4):
-            result[f"option_{i}"] = prepend_space([ex["options"][i] for ex in examples])
+            result[f"option_{i}"] = prepend_space([ex_options[i] for ex_options in examples["options"]])
         label_mappings = {"A": 0, "B": 1, "C": 2, "D": 3}
-        result["label"] = [label_mappings[ex["answer"]] for ex in examples]
+        result["label"] = [label_mappings[ex_answer] for ex_answer in examples["answer"]]
         return result
     
     @property
@@ -161,20 +173,6 @@ class CustomJSONLTask(Task):
             num_choices=config["num_choices"],
             drop_columns=config.get("drop_columns", []),
         )
-    
-    def compute_metrics(self, p: transformers.EvalPrediction):
-        preds = p.predictions[0] if isinstance(p.predictions, tuple) else p.predictions
-        preds = np.argmax(preds, axis=-1)
-        label_ids = p.label_ids
-        total = 0
-        num_correct = 0
-        for idx, ex_labels in enumerate(label_ids):
-            ex_labels[ex_labels == -100] = 1
-            total += 1
-            if (ex_labels == preds[idx]).all():
-                num_correct += 1
-        return {'accuracy': num_correct / total}
-
 
 def prepend_space(list_of_strings: list) -> list:
     return [" " + x for x in list_of_strings]
