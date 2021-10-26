@@ -17,11 +17,12 @@ def tokenize_examples_for_enc_dec_model(examples, tokenizer, max_seq_length: int
     input_strs = []
     target_strs = []
     for i in range(len(examples[option_keys[0]])):
-        all_options = " ".join([f"{j}: {examples[option_key][i]}" for j, option_key in enumerate(option_keys)])
-        input_str = f"{all_options} context: {examples['context'][i]} question: {examples['query'][i]} </s>"
+        all_options = " ".join([f"choice {j}: {examples[option_key][i]}" for j, option_key in enumerate(option_keys)])
+        input_str = f"{all_options} question: {examples['query'][i]} context: {examples['context'][i]} </s>"
         target_str = f"{examples['label'][i]}"
         input_strs.append(input_str)
         target_strs.append(target_str)
+        
     tokenized_inputs = tokenizer(
         input_strs,
         max_length=max_seq_length,
@@ -43,7 +44,6 @@ def tokenize_examples_for_enc_dec_model(examples, tokenizer, max_seq_length: int
         "input_ids": tokenized_inputs["input_ids"].numpy(),
         "attention_mask": tokenized_inputs["attention_mask"].numpy(),
         "labels": target_ids.numpy(),
-        "decoder_attention_mask": tokenized_targets["attention_mask"].numpy(),
     }
 
 
