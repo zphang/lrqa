@@ -86,6 +86,18 @@ class ModelArguments:
     overwrite_cache: bool = field(
         default=False, metadata={"help": "Overwrite the cached preprocessed datasets or not."}
     )
+    torch_dtype_fp16: bool = field(
+        default=False,
+        metadata={"help": "Enable this and set model_revision='fp16' for fp16 GPT-J"},
+    )
+    eval_phase: str = field(
+        default="validation",
+        metadata={"help": "Phase for evaluation (train|validation|test)"},
+    )
+    predict_phases: str = field(
+        default="test",
+        metadata={"help": "Comma separated phases for evaluation (train|validation|test)"},
+    )
 
     def __post_init__(self):
         self.padding_strategy = PaddingStrategy(self.padding_strategy)
@@ -117,14 +129,20 @@ def main():
             config=config,
             cache_dir=model_args.cache_dir,
             revision=model_args.model_revision,
+            # gradient_checkpointing=training_args.gradient_checkpointing,
         )
+        if "longformer" in model_args.model_name_or_path:
+            model.config.max_global_attn = 64  # hardcode!
     elif model_args.model_mode == "generation":
+        torch_dtype = torch.float16 if model_args.torch_dtype_fp16 else None
         model = AutoModelForCausalLM.from_pretrained(
             model_args.model_name_or_path,
             from_tf=bool(".ckpt" in model_args.model_name_or_path),
             config=config,
             cache_dir=model_args.cache_dir,
             revision=model_args.model_revision,
+            torch_dtype=torch_dtype,
+            low_cpu_mem_usage=True,
         )
     elif model_args.model_mode == "encoder-decoder":
         model = T5ForConditionalGeneration.from_pretrained(
@@ -196,13 +214,14 @@ def main():
         trainer.save_state()
 
     if training_args.do_eval:
-        validation_metrics = trainer.evaluate(eval_dataset=tokenized_dataset_dict["validation"])
-        write_json(validation_metrics, os.path.join(training_args.output_dir, "val_metrics.json"))
+        validation_metrics = trainer.evaluate(eval_dataset=tokenized_dataset_dict[model_args.eval_phase])
+        write_json(validation_metrics, os.path.join(training_args.output_dir, f"{model_args.eval_phase}_metrics.json"))
         show_json(validation_metrics)
 
     if training_args.do_predict:
-        predictions = trainer.predict(test_dataset=tokenized_dataset_dict["test"]).predictions
-        torch.save(predictions, os.path.join(training_args.output_dir, "test_predictions.p"))
+        for phase in model_args.predict_phases.split(","):
+            predictions = trainer.predict(test_dataset=tokenized_dataset_dict[phase]).predictions
+            torch.save(predictions, os.path.join(training_args.output_dir, f"{phase}_predictions.p"))
 
 
 if __name__ == "__main__":

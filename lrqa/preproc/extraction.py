@@ -4,6 +4,7 @@ import pyutils.io as io
 import pyutils.display as display
 from bs4 import BeautifulSoup
 import numpy as np
+import preprocessing.preprocess_html as preprocess_html
 
 
 class SimpleScorer:
@@ -34,8 +35,7 @@ class SimpleScorer:
 def get_sent_data(raw_text: str):
     """Given a passage, return sentences and word counts."""
     nlp = spacy.load('en_core_web_sm', disable=['ner'])
-    soup = BeautifulSoup("".join(raw_text))
-    context = " ".join(soup.get_text().strip().split())
+    context = preprocess_html.strip_html(raw_text)
     sent_data = []
     for sent_obj in nlp(context).sents:
         sent_data.append({

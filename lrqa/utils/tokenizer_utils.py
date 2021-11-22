@@ -113,7 +113,7 @@ def get_tokenized_dataset(task: tasks.Task, dataset_dict,
                           model_mode: str,
                           ) -> Dict:
     tokenized_dataset = {}
-    for phase in ["train", "validation"]:
+    for phase in ["train", "validation", "test"]:
         if phase not in dataset_dict:
             continue
         standard_examples = dataset_dict[phase].map(
