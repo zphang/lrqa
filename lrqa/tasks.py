@@ -65,8 +65,20 @@ class Task:
     # noinspection PyMethodMayBeStatic
     def compute_metrics(self, p: transformers.EvalPrediction):
         preds = p.predictions[0] if isinstance(p.predictions, tuple) else p.predictions
-        preds = np.argmax(preds, axis=1)
-        return {"accuracy": (preds == p.label_ids).astype(np.float32).mean().item()}
+        preds = np.argmax(preds, axis=-1)
+        
+        if preds.ndim < 3:
+            return {"accuracy": (preds == p.label_ids).astype(np.float32).mean().item()}
+        else:
+            label_ids = p.label_ids
+            total = 0
+            num_correct = 0
+            for idx, ex_labels in enumerate(label_ids):
+                ex_labels[ex_labels == -100] = 1
+                total += 1
+                if (ex_labels == preds[idx]).all():
+                    num_correct += 1
+            return {'accuracy': num_correct / total}
 
 
 class CosmosQATask(Task):
@@ -90,6 +102,31 @@ class CosmosQATask(Task):
 
     def get_datasets(self) -> dict:
         return datasets.load_dataset("cosmos_qa")
+    
+    
+class RaceTask(Task):
+    def get_datasets(self) -> dict:
+        return datasets.load_dataset("race", "all")
+    
+    @classmethod
+    def standardize_examples(cls, examples):
+        result = {
+            "context": examples["article"],
+            "query": prepend_space(examples["question"]),
+        }
+        for i in range(4):
+            result[f"option_{i}"] = prepend_space([ex_options[i] for ex_options in examples["options"]])
+        label_mappings = {"A": 0, "B": 1, "C": 2, "D": 3}
+        result["label"] = [label_mappings[ex_answer] for ex_answer in examples["answer"]]
+        return result
+    
+    @property
+    def drop_columns(self) -> list:
+        return ["question", "article", "options", "answer"]
+    
+    @property
+    def num_choices(self) -> int:
+        return 4
 
 
 class CustomJSONLTask(Task):
@@ -137,7 +174,6 @@ class CustomJSONLTask(Task):
             drop_columns=config.get("drop_columns", []),
         )
 
-
 def prepend_space(list_of_strings: list) -> list:
     return [" " + x for x in list_of_strings]
 
@@ -158,5 +194,6 @@ def get_task(task_args: TaskArguments):
         return CustomJSONLTask.create_from_path(base_path=task_args.task_base_path)
     task_dict = {
         "cosmosqa": CosmosQATask,
+        "race": RaceTask,
     }
     return task_dict[task_args.task_name]()

@@ -1,3 +1,5 @@
+import csv
+import numpy as np
 import os
 import torch
 from typing import Optional
@@ -9,6 +11,8 @@ from transformers import (
     AutoModelForCausalLM,
     AutoTokenizer,
     HfArgumentParser,
+    Seq2SeqTrainer,
+    Seq2SeqTrainingArguments,
     T5ForConditionalGeneration,
     Trainer,
     TrainingArguments,
@@ -110,6 +114,9 @@ def main():
         tasks.TaskArguments,
         TrainingArguments,
     )))
+    if model_args.model_mode == "encoder-decoder":
+        # Generally not good practice, but will work for now....
+        training_args.__class__ = Seq2SeqTrainingArguments
     config = AutoConfig.from_pretrained(
         model_args.config_name if model_args.config_name else model_args.model_name_or_path,
         cache_dir=model_args.cache_dir,
@@ -156,6 +163,8 @@ def main():
         raise KeyError(model_args.model_mode)
     if model_args.parallelize:
         model.parallelize()
+    else:
+        model = model.cuda()
     task = tasks.get_task(task_args=task_args)
     dataset_dict = task.get_datasets()
     tokenized_dataset_dict = get_tokenized_dataset(
@@ -189,12 +198,12 @@ def main():
         )
     elif model_args.model_mode == "encoder-decoder":
         training_args.remove_unused_columns = False
-        trainer = Trainer(
+        trainer = Seq2SeqTrainer(
             model=model,
             args=training_args,
             train_dataset=tokenized_dataset_dict.get("train"),
             eval_dataset=tokenized_dataset_dict.get("validation"),
-            # compute_metrics=task.compute_metrics,
+            compute_metrics=task.compute_metrics,
             data_collator=default_data_collator,
             tokenizer=tokenizer,
         )
@@ -217,6 +226,19 @@ def main():
         validation_metrics = trainer.evaluate(eval_dataset=tokenized_dataset_dict[model_args.eval_phase])
         write_json(validation_metrics, os.path.join(training_args.output_dir, f"{model_args.eval_phase}_metrics.json"))
         show_json(validation_metrics)
+        preds, label_ids, _ = trainer.predict(test_dataset=tokenized_dataset_dict["validation"])
+        validation_predictions = np.argmax(preds[0], axis=-1)
+        outputs = []
+        for idx, label in enumerate(label_ids):
+            p = validation_predictions[idx]
+            pred_str = tokenizer.decode(p).strip("</s>")
+            label_str = tokenizer.decode(label).strip("</s>")
+            outputs.append([pred_str, label_str])
+        results_csv_path = os.path.join(training_args.output_dir, f"validation_predictions.csv")
+        with open(results_csv_path, "w") as f:
+            csvwriter = csv.writer(f)
+            for row in outputs:
+                csvwriter.writerow(row)
 
     if training_args.do_predict:
         for phase in model_args.predict_phases.split(","):
