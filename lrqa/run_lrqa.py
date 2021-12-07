@@ -226,24 +226,28 @@ def main():
         validation_metrics = trainer.evaluate(eval_dataset=tokenized_dataset_dict[model_args.eval_phase])
         write_json(validation_metrics, os.path.join(training_args.output_dir, f"{model_args.eval_phase}_metrics.json"))
         show_json(validation_metrics)
-        preds, label_ids, _ = trainer.predict(test_dataset=tokenized_dataset_dict["validation"])
-        validation_predictions = np.argmax(preds[0], axis=-1)
-        outputs = []
-        for idx, label in enumerate(label_ids):
-            p = validation_predictions[idx]
-            pred_str = tokenizer.decode(p).strip("</s>")
-            label_str = tokenizer.decode(label).strip("</s>")
-            outputs.append([pred_str, label_str])
-        results_csv_path = os.path.join(training_args.output_dir, f"validation_predictions.csv")
-        with open(results_csv_path, "w") as f:
-            csvwriter = csv.writer(f)
-            for row in outputs:
-                csvwriter.writerow(row)
 
     if training_args.do_predict:
-        for phase in model_args.predict_phases.split(","):
-            predictions = trainer.predict(test_dataset=tokenized_dataset_dict[phase]).predictions
-            torch.save(predictions, os.path.join(training_args.output_dir, f"{phase}_predictions.p"))
+        if model_args.model_mode == "mc":
+            for phase in model_args.predict_phases.split(","):
+                predictions = trainer.predict(test_dataset=tokenized_dataset_dict[phase]).predictions
+                torch.save(predictions, os.path.join(training_args.output_dir, f"{phase}_predictions.p"))
+        elif model_args.model_mode == "encoder-decoder":
+            preds, label_ids, _ = trainer.predict(test_dataset=tokenized_dataset_dict["validation"])
+            validation_predictions = np.argmax(preds[0], axis=-1)
+            outputs = []
+            for idx, label in enumerate(label_ids):
+                p = validation_predictions[idx]
+                pred_str = tokenizer.decode(p).strip("</s>")
+                label_str = tokenizer.decode(label).strip("</s>")
+                outputs.append([pred_str, label_str])
+            results_csv_path = os.path.join(training_args.output_dir, f"validation_predictions.csv")
+            with open(results_csv_path, "w") as f:
+                csvwriter = csv.writer(f)
+                for row in outputs:
+                    csvwriter.writerow(row)
+        else:
+            raise KeyError(model_args.model_mode)
 
 
 if __name__ == "__main__":

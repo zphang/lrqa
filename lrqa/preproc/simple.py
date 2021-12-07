@@ -1,11 +1,37 @@
 import pyutils.io as io
 from bs4 import BeautifulSoup
-import preprocessing.preprocess_html as preprocess_html
 
 
 def old_strip_html(text):
     soup = BeautifulSoup("".join(text))
     return " ".join(soup.get_text().strip().split())
+
+
+def get_clean_text(str_obj):
+    if str_obj is None:
+        return ""
+    return " ".join(str(str_obj).strip().split())
+
+
+def format_nice_text(raw_html):
+    soup = BeautifulSoup(raw_html, "html.parser")
+    p_list = soup.findAll('p')
+    if len(p_list) == 0:
+        # Fall-back for if we have no <p> tags to work off
+        return " ".join(soup.get_text().strip().split())
+    else:
+        text_list = []
+        header = get_clean_text(p_list[0].prev_sibling)
+        if header:
+            text_list.append(header)
+        for p_elem in p_list:
+            clean_p_text = get_clean_text(p_elem.get_text())
+            if clean_p_text:
+                text_list.append(clean_p_text)
+            clean_p_suffix = get_clean_text(p_elem.next_sibling)
+            if clean_p_suffix:
+                text_list.append(clean_p_suffix)
+        return "\n\n".join(text_list)
 
 
 def process_file(input_path, output_path, strip_html=False):
@@ -14,7 +40,7 @@ def process_file(input_path, output_path, strip_html=False):
     for row in data:
         i = 1
         if strip_html:
-            context = preprocess_html.strip_html(row["article"])
+            context = format_nice_text("\n\n".join(row["article"]))
         else:
             context = row["article"]
         while True:
