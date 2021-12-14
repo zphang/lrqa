@@ -130,12 +130,14 @@ def main():
     )
     adjust_tokenizer(tokenizer)
     if model_args.model_mode == "mc":
+        torch_dtype = torch.float16 if model_args.torch_dtype_fp16 else None
         model = AutoModelForMultipleChoice.from_pretrained(
             model_args.model_name_or_path,
             from_tf=bool(".ckpt" in model_args.model_name_or_path),
             config=config,
             cache_dir=model_args.cache_dir,
             revision=model_args.model_revision,
+            torch_dtype=torch_dtype,
             # gradient_checkpointing=training_args.gradient_checkpointing,
         )
         if "longformer" in model_args.model_name_or_path:

@@ -142,8 +142,9 @@ def get_sent_data(raw_text, clean_text=True):
     """Given a passage, return sentences and word counts."""
     nlp = spacy.load("en_core_web_sm", disable=["ner", "tagger", "lemmatizer", "attribute_ruler"])
     if clean_text:
-        assert isinstance(raw_text, list)
-        context = simple.format_nice_text("\n".join(raw_text))
+        if isinstance(raw_text, list):
+            raw_text = "\n".join(raw_text)
+        context = simple.format_nice_text(raw_text)
     else:
         assert isinstance(raw_text, str)
         context = raw_text
@@ -180,11 +181,11 @@ def get_top_sentences(query: str, sent_data: list, max_word_count: int, scorer: 
 
 
 def process_file(input_path, output_path, scorer: SimpleScorer, query_type="question", max_word_count=300,
-                 verbose=False):
+                 verbose=False, clean_text=True):
     data = io.read_jsonl(input_path)
     out = []
     for row in display.maybe_tqdm(data, verbose=verbose):
-        sent_data = get_sent_data(row["article"])
+        sent_data = get_sent_data(row["article"], clean_text=clean_text)
         i = 1
         while True:
             if f"question{i}" not in row:
