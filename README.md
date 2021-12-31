@@ -1,6 +1,6 @@
-# LRQA
+# QuALITY training code (LRQA)
 
-(Name pending)
+This LRQA repository contains code for running baselines on the QuALITY data. 
 
 ## Overview
 
