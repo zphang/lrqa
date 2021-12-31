@@ -1,12 +1,8 @@
-from typing import Iterable
 import torch
 from rouge_score import rouge_scorer
 import spacy
-import pyutils.io as io
-import pyutils.display as display
-from bs4 import BeautifulSoup
+import lrqa.utils.io_utils as io
 import numpy as np
-import nltk
 import transformers
 import lrqa.preproc.simple as simple
 import torch.nn.functional as F
@@ -131,6 +127,22 @@ class DPRScorer:
         return -np.linalg.norm(ref_embed - tgt_embed)
 
 
+def load_fasttext_vectors(fname, max_lines, dim=300):
+    fin = open(fname, 'r', encoding='utf-8', newline='\n', errors='ignore')
+    arr_data = np.zeros([max_lines, dim])
+    keys = []
+    for i, line in enumerate(fin):
+        if i == max_lines:
+            break
+        tokens = line.rstrip().split(' ')
+        arr_data[i] = np.array(list(map(float, tokens[1:])))
+        keys.append(tokens[0])
+    return {
+        "keys": keys,
+        "arr_data": arr_data,
+    }
+
+
 def cosine_similarity(arr1, arr2):
     return F.cosine_similarity(
         torch.from_numpy(arr1.reshape(1, 300)),
@@ -181,10 +193,11 @@ def get_top_sentences(query: str, sent_data: list, max_word_count: int, scorer: 
 
 
 def process_file(input_path, output_path, scorer: SimpleScorer, query_type="question", max_word_count=300,
-                 verbose=False, clean_text=True):
+                 clean_text=True
+                 ):
     data = io.read_jsonl(input_path)
     out = []
-    for row in display.maybe_tqdm(data, verbose=verbose):
+    for row in data:
         sent_data = get_sent_data(row["article"], clean_text=clean_text)
         i = 1
         while True:

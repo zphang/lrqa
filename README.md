@@ -127,3 +127,16 @@ python lrqa/run_lrqa.py \
     --load_best_model_at_end \
     --num_train_epochs 1
 ```
+
+
+## Extractive Preprocessing
+
+Use the HTML-cleaned version of the QuALITY data. You can run the preprocessing for generating the extractive baseline inputs as follows:
+
+```bash
+python lrqa/scripts/extraction.py \
+    --input_base_path /path/to/input/data \
+    --output_base_path /path/to/output/data \
+    --scorer rouge \
+    --query_type question
+```
