@@ -140,3 +140,5 @@ python lrqa/scripts/extraction.py \
     --scorer rouge \
     --query_type question
 ```
+
+This will prepare the data in a format that is suitable for the above `run_lrqa` scripts.
