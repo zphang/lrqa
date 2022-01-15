@@ -35,6 +35,6 @@ def last_checkpoint_handling(training_args, model_args):
     checkpoint = None
     if last_checkpoint is not None:
         checkpoint = last_checkpoint
-    elif os.path.isdir(model_args.model_name_or_path):
-        checkpoint = model_args.model_name_or_path
+    # elif os.path.isdir(model_args.model_name_or_path):
+    #     checkpoint = model_args.model_name_or_path
     return checkpoint

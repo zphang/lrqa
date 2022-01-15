@@ -27,7 +27,6 @@ from lrqa.utils.io_utils import write_json, show_json
 from lrqa.utils.model_tweaks import adjust_tokenizer
 from lrqa.utils.tokenizer_utils import get_tokenized_dataset
 from lrqa.trainers import GenerationTrainer
-from typing import Dict, List
 
 
 @dataclass
