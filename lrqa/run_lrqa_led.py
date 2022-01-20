@@ -194,7 +194,9 @@ class LEDTaskTrainer(Trainer):
             # generate outputs </s> first
             # preds[i, :out.shape[1]-1] = out[0][1:]
             length = min(seq_len, len(out[0])-1)
-            preds[i, :length] = out[0][1:length+1]
+            # preds[i, :length] = out[0][1:length+1]
+            # For base
+            preds[i, :length] = out[0][2:length + 2]
         return None, preds, inputs["labels"]
 
 
