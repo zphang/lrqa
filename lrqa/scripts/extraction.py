@@ -8,10 +8,10 @@ PHASES = ["train", "validation", "test"]
 
 def get_scorer(scorer_name, args):
     if scorer_name == "rouge":
-        return extraction.SimpleScorer()
+        return extraction.Rouge1Scorer()
     elif scorer_name == "fasttext":
         return extraction.FastTextScorer(extraction.load_fasttext_vectors(
-            fname=args.fasttext_path,
+            fname=args.fasttext_embeddings,
             max_lines=100_000,
         ))
     elif scorer_name == "dpr":
@@ -30,8 +30,8 @@ def main():
                         help="{rouge, fasttext, dpr}")
     parser.add_argument("--query_type", type=str, default="question",
                         help="{question, oracle_answer, oracle_question_answer}")
-    parser.add_argument("--fasttext_path", type=str, default="/path/to/crawl-300d-2M.vec",
-                        help="Pickle of fasttext vectors. (Only used for fasttext.)")
+    parser.add_argument("--fasttext_embeddings", type=str,
+                        help="Run save_fasttext_embeddings.py to cache embeddings")
     args = parser.parse_args()
     os.makedirs(args.output_base_path, exist_ok=True)
     scorer = get_scorer(scorer_name=args.scorer, args=args)

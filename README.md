@@ -2,6 +2,10 @@
 
 This LRQA repository contains code for running baselines on the QuALITY data. 
 
+## Update
+
+- [Mar 2020]: Updated preprocessing scripts for QuALITY v1.0.1 
+
 ## Overview
 
 This repository contains code to support experiments on long-document QA models. Currently it just works as a multiple-choice experiment repository.
@@ -142,6 +146,14 @@ python lrqa/scripts/extraction.py \
 ```
 
 This will prepare the data in a format that is suitable for the above `run_lrqa` scripts.
+
+To use fastText, you will first need to download fastText embeddings from [here](https://dl.fbaipublicfiles.com/fasttext/vectors-english/crawl-300d-2M.vec.zip), and then run the following script:
+
+```bash
+python lrqa/scripts/save_fasttext_embeddings.py \
+    --fasttext_data_path /path/to/crawl-300d-2M.vec \
+    --output_path /path/to/fasttext_embeddings.p
+```
 
 ## Applications
 

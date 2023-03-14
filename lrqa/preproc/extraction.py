@@ -1,3 +1,4 @@
+import argparse
 import torch
 from rouge_score import rouge_scorer
 import spacy
@@ -6,9 +7,10 @@ import numpy as np
 import transformers
 import lrqa.preproc.simple as simple
 import torch.nn.functional as F
+import tqdm.auto as tqdm
 
 
-class SimpleScorer:
+class Rouge1Scorer:
     def __init__(self, metrics=(("rouge1", "r"),), use_stemmer=True):
         self.metrics = metrics
         self.scorer = rouge_scorer.RougeScorer(
@@ -34,10 +36,13 @@ class SimpleScorer:
 
 
 class FastTextScorer:
-    def __init__(self, data, use_cache=True, verbose=True):
-        if isinstance(data, str):
-            data = torch.load(data)
-        self.data_dict = {k: data["arr_data"][i] for i, k in enumerate(data["keys"])}
+    def __init__(self, fasttext_embeddings, use_cache=True, verbose=True):
+        if isinstance(fasttext_embeddings, str):
+            fasttext_embeddings = torch.load(fasttext_embeddings)
+        self.embeddings_dict = {
+            k: fasttext_embeddings["arr_data"][i]
+            for i, k in enumerate(fasttext_embeddings["keys"])
+        }
         self.nlp = spacy.load('en_core_web_sm', disable=['ner', 'tagger', "lemmatizer", "attribute_ruler"])
         self.use_cache = use_cache
         if use_cache:
@@ -51,8 +56,8 @@ class FastTextScorer:
         token_list = [str(token) for token in self.nlp(string)]
         token_embeds = []
         for token in token_list:
-            if token in self.data_dict:
-                token_embeds.append(self.data_dict[token])
+            if token in self.embeddings_dict:
+                token_embeds.append(self.embeddings_dict[token])
             else:
                 if self.verbose and token not in self.unk_set:
                     print(f"Verbose: Did not find '{token}'")
@@ -169,7 +174,7 @@ def get_sent_data(raw_text, clean_text=True):
     return sent_data
 
 
-def get_top_sentences(query: str, sent_data: list, max_word_count: int, scorer: SimpleScorer):
+def get_top_sentences(query: str, sent_data: list, max_word_count: int, scorer: Rouge1Scorer):
     scores = []
     for sent_idx, sent_dict in enumerate(sent_data):
         scores.append((sent_idx, scorer.score(query, sent_dict["text"])))
@@ -192,25 +197,23 @@ def get_top_sentences(query: str, sent_data: list, max_word_count: int, scorer: 
     return shortened_article
 
 
-def process_file(input_path, output_path, scorer: SimpleScorer, query_type="question", max_word_count=300,
+def process_file(input_path, output_path, scorer: Rouge1Scorer, query_type="question", max_word_count=300,
                  clean_text=True
                  ):
     data = io.read_jsonl(input_path)
     out = []
-    for row in data:
+    for row in tqdm.tqdm(data):
         sent_data = get_sent_data(row["article"], clean_text=clean_text)
-        i = 1
-        while True:
-            if f"question{i}" not in row:
-                break
+        for question_set in row["questions"]:
             if query_type == "question":
-                query = row[f"question{i}"].strip()
+                query = question_set["question"].strip()
             elif query_type == "oracle_answer":
-                query = row[f"question{i}option{row[f'question{i}_gold_label']}"].strip()
+                query = question_set["options"][question_set["gold_label"]-1].strip()
             elif query_type == "oracle_question_answer":
                 query = (
-                    row[f"question{i}"].strip()
-                    + " " + row[f"question{i}option{row['question{i}_gold_label']}"].strip()
+                    question_set["question"].strip()
+                    + " "
+                    + question_set["options"][question_set["gold_label"]-1].strip()
                 )
             else:
                 raise KeyError(query_type)
@@ -222,12 +225,11 @@ def process_file(input_path, output_path, scorer: SimpleScorer, query_type="ques
             )
             out.append({
                 "context": shortened_article,
-                "query": " " + row[f"question{i}"].strip(),
-                "option_0": " " + row[f"question{i}option1"].strip(),
-                "option_1": " " + row[f"question{i}option2"].strip(),
-                "option_2": " " + row[f"question{i}option3"].strip(),
-                "option_3": " " + row[f"question{i}option4"].strip(),
-                "label": row[f"question{i}_gold_label"] - 1,
+                "query": " " + question_set["question"].strip(),
+                "option_0": " " + question_set["options"][0].strip(),
+                "option_1": " " + question_set["options"][1].strip(),
+                "option_2": " " + question_set["options"][2].strip(),
+                "option_3": " " + question_set["options"][3].strip(),
+                "label": question_set["gold_label"]-1,
             })
-            i += 1
     io.write_jsonl(out, output_path)
